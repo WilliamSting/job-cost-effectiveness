@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>工作性价比评估 V3.4</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <style>
+    body {
+      background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+      background-size: 400% 400%;
+      animation: gradient 15s ease infinite;
+      min-height: 100vh;
+    }
+    @keyframes gradient {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(12px);
+      border-radius: 2.25rem;
+    }
+    .option-btn {
+      transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .option-btn:active { transform: scale(0.98); }
+    .soft-shadow {
+      box-shadow: 0 18px 40px rgba(0,0,0,0.16);
+    }
+  </style>
+</head>
+
+<body class="flex items-center justify-center p-4">
+  <div id="app" class="max-w-md w-full min-h-[700px] glass-card soft-shadow overflow-hidden flex flex-col relative">
+
+    <!-- 顶部进度条（答题阶段显示） -->
+    <div v-if="step === 'quiz'" class="h-1.5 bg-gray-100 w-full">
+      <div class="h-full bg-slate-900 transition-all duration-500" :style="{ width: progress + '%' }"></div>
+    </div>
+
+    <main class="flex-1 p-8 flex flex-col">
+
+      <!-- HOME -->
+      <div v-if="step === 'home'" class="flex-1 flex flex-col justify-center text-center">
+        <div class="text-7xl mb-6">📉</div>
+        <h1 class="text-3xl font-black text-slate-900 mb-4 leading-tight">
+          工作性价比鉴定<br/>真实人生时薪计算器
+        </h1>
+        <p class="text-slate-500 text-sm mb-10 leading-relaxed">
+          拆解 5类 17项 职业损耗维度<br/>
+          帮你计算你的“真实人生时薪”
+        </p>
+        <button @click="startQuiz"
+          class="w-full bg-slate-900 text-white py-5 rounded-2xl font-bold text-lg shadow-xl hover:bg-black transition">
+          开始深度诊断
+        </button>
+        <p class="mt-4 text-xs text-slate-400">
+          已有 <span class="font-bold">1,289,301</span> 人参与“打工惨烈度”比拼
+        </p>
+      </div>
+
+      <!-- QUIZ -->
+      <div v-if="step === 'quiz'" class="flex-1 flex flex-col">
+        <div class="mb-6">
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-slate-900 font-black text-xs tracking-widest uppercase">
+              QUESTION {{ currentQuestion + 1 }} / {{ questions.length }}
+            </span>
+            <button v-if="currentQuestion > 0" @click="prevQuestion"
+              class="text-slate-500 text-xs font-bold flex items-center hover:text-slate-900 transition">
+              <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path>
+              </svg>
+              返回上一题
+            </button>
+          </div>
+
+          <h2 class="text-xl font-bold text-slate-900 leading-snug">
+            {{ questions[currentQuestion].title }}
+          </h2>
+          <div class="mt-1 text-[10px] text-slate-400 font-black tracking-widest">
+            DIM · {{ dimMeta[questions[currentQuestion].dim].label }}
+          </div>
+          <div
+            v-if="currentQuestion === 0"
+            class="mt-2 mb-1 text-[10px] text-slate-400 leading-relaxed"
+          >
+            <span class="font-bold">计量口径说明：</span>
+            本题中的「白银」按现实金属计量换算，
+            <span class="font-bold">1 两 = 50 克</span>，
+            以 <span class="font-bold">25 元 / 克</span> 折算（约 <span class="font-bold">1,250 元 / 两</span>），
+            仅用于收入尺度对照。
+          </div>
+          <p class="text-xs text-slate-500 mt-1">
+            选一个最贴近现实的，不用“美化人生”
+          </p>
+        </div>
+
+        <div class="space-y-3 flex-1">
+          <button v-for="opt in questions[currentQuestion].options"
+            @click="handleAnswer(opt.score)"
+            class="option-btn w-full text-left p-4 border-2 border-slate-100 rounded-2xl hover:border-slate-900 hover:bg-slate-50">
+            <div class="flex items-center justify-between">
+              <span class="text-slate-800 font-medium whitespace-pre-line">{{ opt.text }}</span>
+              <span class="text-[10px] font-black text-slate-300 tracking-widest">SELECT</span>
+            </div>
+          </button>
+        </div>
+
+        <div class="mt-6 text-[10px] text-slate-400 leading-relaxed">
+          提示：答题不会记录你的身份信息；结果仅用于生成本地报告展示。
+        </div>
+      </div>
+
+      <!-- RESULT (V3.4 报告版) -->
+      <div v-if="step === 'result'" class="flex-1 flex flex-col relative" id="fullReport">
+      <!-- 白嫖盖章（仅对白嫖用户展示） -->
+      <div v-if="freeRider" class="pointer-events-none absolute top-8 right-8 z-20">
+        <div class="select-none relative rotate-[-12deg] overflow-visible">
+          <svg width="92" height="92" viewBox="0 0 100 100" class="opacity-80"
+            xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+            <!-- 外圈 -->
+            <circle cx="50" cy="50" r="40" fill="none" stroke="#DC2626" stroke-width="4"></circle>
+
+            <!-- 文字走“圈内弧”（半径更小：32） -->
+            <path id="stampTopArc_in" d="M 20 50 A 30 30 0 0 1 80 50" fill="none"></path>
+            <path id="stampBottomArc_in" d="M 18 50 A 32 32 0 0 0 82 50" fill="none"></path>
+
+            <!-- 上弧：仅供自嘲（圈内） -->
+            <text font-size="8" font-weight="800" fill="#DC2626"
+                  font-family="Songti SC, STSong, STKaiti, KaiTi, Noto Serif SC, serif"
+                  letter-spacing="2">
+              <textPath href="#stampTopArc_in" xlink:href="#stampTopArc_in" startOffset="50%" text-anchor="middle">
+                仅供自嘲
+              </textPath>
+            </text>
+
+            <!-- 中间主字 -->
+            <text x="50" y="56" text-anchor="middle"
+                  font-size="18" font-weight="900" fill="#DC2626"
+                  font-family="Songti SC, STSong, STKaiti, KaiTi, Noto Serif SC, serif"
+                  letter-spacing="4">
+              白嫖
+            </text>
+
+            <!-- 下弧：九毛九都不舍得（圈内） -->
+            <text font-size="7" font-weight="800" fill="#DC2626"
+                  font-family="Songti SC, STSong, STKaiti, KaiTi, Noto Serif SC, serif"
+                  letter-spacing="0.5">
+              <textPath href="#stampBottomArc_in" xlink:href="#stampBottomArc_in" startOffset="50%" text-anchor="middle" method="align" spacing="auto">
+                九毛九都不舍得
+              </textPath>
+            </text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- 白嫖水印（仅对白嫖用户展示） 
+      <div v-if="freeRider" class="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div class="select-none text-slate-900 opacity-10 font-black text-4xl tracking-widest rotate-[-18deg]">
+          白嫖战神 · 九毛九 都不舍得
+        </div>
+      </div> -->
+
+        <!-- 结果页头部：更“报告感” -->
+        <div class="mb-6">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 text-white text-[10px] font-black tracking-widest">
+            人生不止月收入
+          </div>
+          <div class="mt-4">
+            <h2 class="text-2xl font-black text-slate-900 leading-tight">
+              你的工作性价比报告
+            </h2>
+            <p class="text-sm text-slate-500 mt-1">
+              这不是建议你怎么活，只是帮你看清代价。
+            </p>
+          </div>
+        </div>
+
+        <!-- 模块一｜总判定 -->
+        <div class="bg-slate-900 text-white p-5 rounded-2xl">
+          <div class="flex items-center justify-between">
+            <p class="text-[10px] opacity-70 font-black tracking-widest">系统判定类型</p>
+            <span class="text-[10px] opacity-70 font-black tracking-widest">SCORE {{ totalScoreAdj }}</span>
+          </div>
+
+          <h3 class="text-xl font-black mt-2 leading-snug">
+            【{{ resultData.typeTitle }}】
+          </h3>
+          <p class="text-sm opacity-90 mt-2 leading-relaxed">
+            {{ resultData.typeExplain }}
+          </p>
+        </div>
+
+        <!-- 模块二｜结构化诊断清单 -->
+        <div class="bg-white border border-slate-100 p-5 rounded-2xl mt-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-black text-slate-900">整体诊断拆解</h3>
+            <span class="text-[10px] font-black text-slate-300 tracking-widest">DIAGNOSIS</span>
+          </div>
+
+          <div class="space-y-3 text-sm text-slate-800">
+            <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+              <div class="text-[10px] font-black tracking-widest text-slate-400 mb-1">
+                真实人生时薪
+              </div>
+              <div class="flex items-end gap-2">
+                <div class="text-3xl font-black text-slate-900">
+                  {{ resultData.diagnosis.hourly }}
+                </div>
+                <div class="text-sm font-black text-slate-500 mb-1">
+                  元 / 小时
+                </div>
+              </div>
+              <div class="mt-1 text-[10px] text-slate-400 leading-relaxed">
+                按「被工作实际侵蚀的人生时间」折算，
+                包含通勤、隐性加班、下班后注意力占用，
+                以及对周末与恢复时间的影响。
+              </div>
+            </div>
+
+            <div class="flex items-start gap-2">
+              <div class="mt-0.5">🧠</div>
+              <div class="leading-relaxed">
+                最大亏损项：
+                <span class="font-black text-slate-900">{{ resultData.diagnosis.loss }}</span>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-2">
+              <div class="mt-0.5">🐟</div>
+              <div class="leading-relaxed">
+                回血能力：
+                <span class="font-black text-slate-900">{{ resultData.diagnosis.recovery }}</span>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-2">
+              <div class="mt-0.5">📌</div>
+              <div class="leading-relaxed">
+                主要拖累维度：
+                <span class="font-black text-slate-900">{{ resultData.topDrag.emoji }} {{ resultData.topDrag.label }}</span>
+                <span class="mx-2 text-slate-300">|</span>
+                唯一还算能撑的点：
+                <span class="font-black text-slate-900">{{ resultData.topStrength.emoji }} {{ resultData.topStrength.label }}</span>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-2">
+              <div class="mt-0.5">⚠️</div>
+              <div class="leading-relaxed text-slate-500">
+                {{ resultData.diagnosis.risk }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 模块三｜路径级建议 -->
+        <div class="bg-white border border-slate-100 p-5 rounded-2xl mt-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-black text-slate-900">系统建议路径</h3>
+            <span class="text-[10px] font-black text-slate-300 tracking-widest">PATHS</span>
+          </div>
+
+          <ul class="space-y-2 text-sm text-slate-800">
+            <li v-for="p in resultData.paths" :key="p" class="flex gap-2 leading-relaxed">
+              <span class="font-black text-slate-400">•</span>
+              <span>{{ p }}</span>
+            </li>
+          </ul>
+
+          <div class="mt-4 text-[10px] text-slate-400 leading-relaxed">
+            注：以上为“条件化路径”，不替你做决定，只提示风险与资源配置方向。
+          </div>
+        </div>
+
+        <!-- 模块二点五｜五维损耗画像（V3.4 新增） -->
+        <div class="bg-white border border-slate-100 p-5 rounded-2xl mt-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-black text-slate-900">五维损耗画像</h3>
+            <span class="text-[10px] font-black text-slate-300 tracking-widest">5D MODEL</span>
+          </div>
+
+          <div class="space-y-3">
+            <div v-for="(meta, key) in dimMeta" :key="key">
+              <div class="flex items-center justify-between text-[12px]">
+                <div class="font-bold text-slate-800">
+                  <span class="mr-2">{{ meta.emoji }}</span>{{ meta.label }}
+                </div>
+                <div class="text-slate-500 font-black">{{ dimScoresNorm[key] }}</div>
+              </div>
+              <div class="mt-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+                <div class="h-full bg-slate-900" :style="{ width: Math.min(100, (dimScoresNorm[key] / 30) * 100) + '%' }"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 text-[10px] text-slate-400 leading-relaxed">
+            解释：分数越高 ≈ 该维度越不破坏整体均衡。你可以把最低的 1-2 项当作“主要拖累源”。
+          </div>
+        </div>
+
+        <!-- 模块四｜可传播结论卡（强截图诱因） -->
+        <div class="bg-yellow-100 border border-yellow-200 p-5 rounded-2xl mt-4 text-center">
+          <p class="text-[10px] text-slate-500 font-black tracking-widest mb-2">由上述可得</p>
+          <p class="text-lg font-black text-slate-900 leading-snug">
+            {{ resultData.shareText }}
+          </p>
+          <div class="mt-3 text-[10px] text-slate-400">
+            这是系统给你的结论摘要
+          </div>
+        </div>
+
+        <!-- 评估海报（最终结构｜用于 html2canvas 截图） -->
+        <div id="posterCard"
+          class="mt-6 bg-white border-2 border-slate-900 rounded-3xl p-6 relative overflow-hidden">
+
+          <!-- 顶部标签 -->
+          <div class="flex items-center justify-between">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 text-white text-[10px] font-black tracking-widest">
+              人生不止月收入
+            </div>
+            <div class="text-[10px] font-black tracking-widest text-slate-400">
+              SNAPSHOT
+            </div>
+          </div>
+
+          <!-- 背景纹理（增强海报感） -->
+          <div class="absolute -top-16 -right-16 w-40 h-40 rounded-full bg-slate-900/5"></div>
+          <div class="absolute -bottom-20 -left-20 w-56 h-56 rounded-full bg-slate-900/5"></div>
+
+          <!-- 主结论（最大号字） -->
+          <div class="mt-6 relative z-10">
+            <div class="text-[10px] font-black tracking-widest text-slate-400 mb-2">
+              YOUR VERDICT
+            </div>
+            <div class="text-2xl font-black text-slate-900 leading-snug">
+              {{ resultData.shareText }}
+            </div>
+          </div>
+
+          <!-- 量化锚点（两个） -->
+          <div class="mt-6 grid grid-cols-2 gap-3 relative z-10">
+            <div class="rounded-2xl border border-slate-200 p-4">
+              <div class="text-[10px] font-black tracking-widest text-slate-400">
+                真实人生时薪
+              </div>
+              <div class="mt-2 text-xl font-black text-slate-900">
+                {{ resultData.diagnosis.hourly }}
+                <span class="text-xs font-black text-slate-400">/h</span>
+              </div>
+              <div class="mt-1 text-[10px] text-slate-400 leading-relaxed">
+                含通勤 / 隐性加班 / 注意力占用 / 周末与恢复影响
+              </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 p-4">
+              <div class="text-[10px] font-black tracking-widest text-slate-400">
+                评估得分
+              </div>
+              <div class="mt-2 text-xl font-black text-slate-900">
+                {{ totalScoreAdj }}
+                <span class="text-xs font-black text-slate-400">/150</span>
+              </div>
+              <div class="mt-1 text-[10px] text-slate-400 leading-relaxed">
+                越高 ≈ 越可持续
+              </div>
+            </div>
+          </div>
+
+          <!-- 传播引导 -->
+          <div class="mt-5 text-[10px] text-slate-500 leading-relaxed relative z-10">
+            建议截图转发：让朋友判断你是在上班，还是在慢性透支。
+          </div>
+
+          <!-- 底部署名 -->
+          <div class="mt-3 text-[10px] text-slate-300 font-black tracking-widest relative z-10">
+            Generated by Job Cost-Effectiveness Assessment
+          </div>
+
+          <!-- 白嫖用户 · 二次转化提示（仅海报内显示） -->
+          <div
+            v-if="freeRider"
+            class="mt-3 text-[10px] text-red-500 font-bold leading-relaxed cursor-pointer relative z-10"
+            @click="showPayModal = true"
+          >
+            支持作者后可移除盖章，生成完整无标记海报
+          </div>
+
+          <!-- 白嫖盖章（进海报） -->
+          <div v-if="freeRider" class="pointer-events-none absolute top-5 right-5 z-20">
+            <!-- 这里直接放你现在已经调好的红色盖章 SVG -->
+            <svg width="92" height="92" viewBox="0 0 100 100" class="opacity-80"
+              xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+              <!-- 外圈 -->
+              <circle cx="50" cy="50" r="40" fill="none" stroke="#DC2626" stroke-width="4"></circle>
+
+              <!-- 文字走“圈内弧”（半径更小：32） -->
+              <path id="stampTopArc_in_poster" d="M 20 50 A 30 30 0 0 1 80 50" fill="none"></path>
+              <path id="stampBottomArc_in_poster" d="M 18 50 A 32 32 0 0 0 82 50" fill="none"></path>
+
+              <!-- 上弧：仅供自嘲（圈内） -->
+              <text font-size="8" font-weight="800" fill="#DC2626"
+                    font-family="Songti SC, STSong, STKaiti, KaiTi, Noto Serif SC, serif"
+                    letter-spacing="2">
+                <textPath href="#stampTopArc_in_poster" xlink:href="#stampTopArc_in_poster" startOffset="50%" text-anchor="middle">
+                  仅供自嘲
+                </textPath>
+              </text>
+
+              <!-- 中间主字 -->
+              <text x="50" y="56" text-anchor="middle"
+                    font-size="18" font-weight="900" fill="#DC2626"
+                    font-family="Songti SC, STSong, STKaiti, KaiTi, Noto Serif SC, serif"
+                    letter-spacing="4">
+                白嫖
+              </text>
+
+              <!-- 下弧：九毛九都不舍得（圈内） -->
+              <text font-size="7" font-weight="800" fill="#DC2626"
+                    font-family="Songti SC, STSong, STKaiti, KaiTi, Noto Serif SC, serif"
+                    letter-spacing="0.5">
+                <textPath href="#stampBottomArc_in_poster" xlink:href="#stampBottomArc_in_poster" startOffset="50%" text-anchor="middle" method="align" spacing="auto">
+                  九毛九都不舍得
+                </textPath>
+              </text>
+            </svg>
+          </div>
+
+        </div>
+        <!-- 操作按钮区 -->
+        <div id="actionBar" class="mt-6 space-y-3">
+          <button @click="captureLongReport"
+            class="w-full border-2 border-slate-900 py-3 rounded-2xl font-bold text-slate-900 hover:bg-slate-900 hover:text-white transition">
+            分享长截图（完整报告）📜
+          </button>
+
+          <button @click="capturePoster"
+            class="w-full border-2 border-slate-900 py-3 rounded-2xl font-bold text-slate-900 hover:bg-slate-900 hover:text-white transition">
+            分享海报（评估快照）🧾
+          </button>
+
+          <button @click="reset"
+            class="w-full py-3 rounded-2xl font-bold text-slate-500 hover:text-slate-900 transition">
+            重新评估（不留恋）
+          </button>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- 支付弹窗 -->
+    <div v-if="showPayModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-md z-50 flex items-center justify-center p-6">
+      <div class="bg-white rounded-[2.25rem] p-8 w-full max-w-xs text-center soft-shadow">
+        <h3 class="text-xl font-black mb-2 text-slate-900">最后一步</h3>
+        <p class="text-slate-500 text-xs mb-6 leading-relaxed">
+          你的「打工性价比评估报告」已生成<br>
+          使用 <span class="font-black">支付宝扫码</span> 支持作者 <span class="text-red-500 font-black">0.99 元</span><br>
+          支付完成后点击下方按钮查看报告
+        </p>
+
+        <div class="bg-slate-100 w-44 h-44 mx-auto mb-6 rounded-3xl border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden">
+        <img
+          v-if="payQrSrc"
+          :src="payQrSrc"
+          alt="收款码"
+          class="w-full h-full object-contain"
+        />
+        <span v-else class="text-[10px] text-slate-400 font-black tracking-widest p-4">
+          请配置收款码（assets/qr.png）
+        </span>
+      </div>
+
+        <button @click="confirmPayment"
+          class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-black transition mb-3">
+          我已支付，看报告
+        </button>
+
+        <button @click="continueFree"
+          class="w-full py-3 rounded-2xl font-bold text-slate-400 hover:text-slate-900 transition">
+          坚持白嫖<br>
+          （开发付款验证太麻烦😭）
+        </button>
+
+        <p class="mt-4 text-[10px] text-slate-300 font-bold italic tracking-tighter">
+          Powered by Credit Payment Mode
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+  <script>
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          step: 'home',
+          currentQuestion: 0,
+          scoreHistory: [], // stores { score, dim }
+          totalScore: 0,
+          showPayModal: false,
+          // 是否白嫖进入结果页（用于结果页水印）
+          freeRider: false,
+          // 收款码图片路径（方案A）：把二维码图片放到同目录的 assets 文件夹里，命名为 qr.png
+          payQrSrc: 'assets/qr.png',
+          // 题库：15 道
+          // 题库修正版（去除多余说明题，收入题为银两版，序号校正）
+          questions: [
+            { title: '1. 你每月真实到手收入（全年收入均摊）：', dim: 'pay', options: [
+              { text: '> 5 万元，月俸 ≥ 40 两白银\n（回报很高，但通常伴随高强度投入）', score: 15 },
+              { text: '3 万 – 5 万元，月俸 24 – 39 两白银\n（收入稳定，但仍在用时间换取）', score: 10 },
+              { text: '1.5 万 – 3 万元，月俸 12 – 23 两白银\n（能正常生活，但抗风险能力有限）', score: 6 },
+              { text: '8 千 – 1.5 万元，月俸 6 – 11 两白银\n（日子能过，但任何意外都会被放大）', score: 4 },
+              { text: '3 千 – 8 千元，月俸 2 – 6 两白银\n（精打细算维持，几乎没有缓冲空间）', score: 2 },
+              { text: '< 3 千元，月俸 < 2 两白银\n（收入极不稳定，已接近生存线）', score: 0 }
+            ]},
+
+            { title: '2. 隐形福利折算（月均）：', dim: 'pay', options: [
+              { text: '≥2,000 元：房餐/交通/通讯等（隐形加薪）', score: 12 },
+              { text: '800–1,999 元：有福利但有限', score: 8 },
+              { text: '200–799 元：象征性存在', score: 4 },
+              { text: '<200 元或没有：基本靠自己扛', score: 0 }
+            ]},
+
+            { title: '3. 保障与报销兑现：社保/公积金/报销体验', dim: 'pay', options: [
+              { text: '足额缴纳+报销顺畅：合规且省心（回血）', score: 10 },
+              { text: '基本合规但偶有拖延：还能忍（勉强可忍）', score: 7 },
+              { text: '有缺口/经常卡：隐形扣薪（隐形扣薪）', score: 3 },
+              { text: '不缴/名义缴/报销难：风险自担（风险自担）', score: 0 }
+            ]},
+
+            { title: '4. 每天实际工时（含加班）：', dim: 'time', options: [
+              { text: '无需坐班/自由职业：节奏自控', score: 12 },
+              { text: '8h或更少，到点下班（九五/六）', score: 10 },
+              { text: '9–10h，偶尔加一脚（九七/八）', score: 7 },
+              { text: '10h+ 常态：常态 996（长期透支）', score: 3 },
+              { text: '随叫随到：007（待命状态）', score: 0 }
+            ]},
+
+            { title: '5. 单程通勤体验：', dim: 'time', options: [
+              { text: '≤15分钟，通勤几乎无感（瞬间移动）', score: 10 },
+              { text: '≤45分钟，能接受但要耗精力（尚可忍受）', score: 7 },
+              { text: '≥60分钟，日常被通勤吞掉（每天像跨城）', score: 2 },
+              { text: '≥120分钟，煎熬从出门开始（取经之路）', score: 0 }
+            ]},
+
+            { title: '6. 中午属于你的纯自由时间：', dim: 'time', options: [
+              { text: '≥2h，吃完还能睡到饱', score: 10 },
+              { text: '≈1.5h，勉强够用的午休', score: 7 },
+              { text: '≈1h，吃完就得赶紧躺下', score: 4 },
+              { text: '<30min，边吃边干', score: 0 }
+            ]},
+
+            { title: '7. 你的午休硬件：', dim: 'body', options: [
+              { text: '能躺：沙发/折叠床（五星级）', score: 10 },
+              { text: '能睡：趴桌+好枕（舒适区）', score: 7 },
+              { text: '能熬：趴桌手麻脖子疼（战地模式）', score: 2 },
+              { text: '不敢睡：随时被叫走/被盯（随时开会）', score: 0 }
+            ]},
+
+            { title: '8. 如果午休时工作找你：', dim: 'boundary', options: [
+              { text: '完全不回：午休就是午休（绝对防御）', score: 10 },
+              { text: '只回真急事：其它一律等（柔性防御）', score: 6 },
+              { text: '经常被打断：午休被切成碎片（随时被叫）', score: 3 },
+              { text: '必须秒回：只是换个姿势上班（无处可逃）', score: 0 }
+            ]},
+
+            { title: '9. 每天纯“带薪摸鱼”时长：', dim: 'boundary', options: [
+              { text: '≥2.5h，摸鱼更像主线（上班像社交）', score: 15 },
+              { text: '1–2h，能喘口气（劳逸结合）', score: 10 },
+              { text: '≈30min，只够“生理回血”（仅限厕所）', score: 5 },
+              { text: '≈0min，全程被指标/屏幕绑架（全程监控）', score: 0 }
+            ]},
+
+            { title: '10. 办公室的“如厕自由”：', dim: 'boundary', options: [
+              { text: '想蹲就蹲：带薪长蹲也没人管（无人管）', score: 10 },
+              { text: '正常如厕：不多问但有感知（基本没人管）', score: 7 },
+              { text: '蹲久会被暗示：气氛不对（被盯着看）', score: 2 },
+              { text: '要报备/限时：像在打卡（报备限时）', score: 0 }
+            ]},
+
+            { title: '11. 下班后消息响了的反应：', dim: 'boundary', options: [
+              { text: '直接无视：免打扰常开（不读不回模式）', score: 10 },
+              { text: '看情况：急事回，其它明天（看人下菜）', score: 7 },
+              { text: '条件反射：洗澡也回（随叫随到）', score: 2 },
+              { text: '追命式连环 call：不回不行（夺命追魂）', score: 0 }
+            ]},
+
+            { title: '12. 直属领导最常做的事：', dim: 'mind', options: [
+              { text: '给资源给预算：少废话多结果（打钱机器）', score: 10 },
+              { text: '正常普通人：不坑不帮，按流程走（随缘）', score: 8 },
+              { text: '画出未来：小坑，偶尔能兑现（画饼大师）', score: 6 },
+              { text: '抢功甩锅：出事你背（甩锅侠）', score: 2 },
+              { text: '持续否定：你永远不够好（情绪操控）', score: 0 }
+            ]},
+
+            { title: '13. 周一早上睁眼的感觉：', dim: 'mind', options: [
+              { text: '很想去：今天能搞钱或拿资源（真在赚钱）', score: 12 },
+              { text: '还行：至少不抗拒（可接受）', score: 10 },
+              { text: '麻木：身体自动上班（行尸走肉）', score: 7 },
+              { text: '焦虑：胸口发紧睡不踏实（生理厌恶）', score: 2 },
+              { text: '绝望：像去上坟（这破班能不能不去）', score: 0 }
+            ]},
+
+            { title: '14. 想请假去旅游/办事：', dim: 'boundary', options: [
+              { text: '直接批：不问理由（秒批）', score: 10 },
+              { text: '能批但要包装理由（编个好理由）', score: 7 },
+              { text: '要看脸色+被盘问（刨根问底）', score: 2 },
+              { text: '基本不可能：只要地球不爆炸（别想走）', score: 0 }
+            ]},
+
+            { title: '15. 你的办公物理环境：', dim: 'body', options: [
+              { text: '贵宾待遇：还能补给（人体工学+零食）', score: 10 },
+              { text: '普通格子间：能用就行呗（标配）', score: 7 },
+              { text: '环境拉胯：椅子坏/挤到背靠背（战损工位）', score: 2 },
+              { text: '战地环境：甲醛/噪音/没窗户（地狱工位）', score: 0 }
+            ]},
+
+            { title: '16. 工作后的身体状态：', dim: 'body', options: [
+              { text: '状态在线：身体倍棒睡得好（如沐春风）', score: 10 },
+              { text: '小毛病常驻：颈椎腰背痛（颈椎警告）', score: 6 },
+              { text: '长期疲惫：睡不醒靠咖啡强撑（续命模式）', score: 3 },
+              { text: '明显透支：体检全红/脱发（报警状态）', score: 0 }
+            ]},
+
+            { title: '17. 每天工作共事好像：', dim: 'mind', options: [
+              { text: '家人/伴侣：能一起吐槽也能互相拉住（家人）', score: 10 },
+              { text: '同事：相处正常但谈不上亲密（同事）', score: 7 },
+              { text: '路人：每天和陌生人耗时间（情感消耗）', score: 5 },
+              { text: '宫斗氛围：随时防背刺（甄嬛传2）', score: 0 }
+            ]}
+          ]
+        };
+      },
+
+      computed: {
+      progress() {
+        if (this.step !== 'quiz') return 0;
+        return ((this.currentQuestion + 1) / this.questions.length) * 100;
+      },
+
+      // 5 维度的元信息（用于答题提示 + 报告展示）
+      dimMeta() {
+        return {
+          pay: { label: '回报兑现', emoji: '💰' },
+          time: { label: '时间掠夺', emoji: '⏳' },
+          boundary: { label: '边界侵犯', emoji: '📵' },
+          body: { label: '身体损耗', emoji: '🫀' },
+          mind: { label: '精神折磨', emoji: '🧠' }
+        };
+      },
+
+      // 每个维度的“理论最高分”（按题库动态计算，避免后续加题/改分导致失真）
+      dimMax() {
+        const max = { pay: 0, time: 0, boundary: 0, body: 0, mind: 0 };
+        for (const q of this.questions) {
+          const dim = q.dim || 'time';
+          const optMax = Math.max(
+            ...(q.options || []).map(o => (typeof o.score === 'number' ? o.score : 0)),
+            0
+          );
+          if (max[dim] === undefined) max[dim] = 0;
+          max[dim] += optMax;
+        }
+        return max;
+      },
+
+      // 维度分数归一化：每个维度统一映射到 0–30，便于横向比较
+      dimScoresNorm() {
+        const raw = this.dimScores;
+        const max = this.dimMax;
+        const out = {};
+        for (const key of Object.keys(this.dimMeta)) {
+          const m = max[key] || 1;
+          const r = raw[key] || 0;
+          out[key] = Math.round((r / m) * 30);
+        }
+        return out;
+      },
+
+      // 总分归一化：5 个维度各 30 分，总计 150
+      totalScoreNorm() {
+        const s = this.dimScoresNorm;
+        return Object.values(s).reduce((a, b) => a + (b || 0), 0);
+      },
+      
+      // 类型判定用分数：在 totalScoreNorm 基础上加入“低维度拖累惩罚 + 均衡加成”
+      // 目的：避免某一两项塌陷被其它高分掩盖；也让均衡高分更容易冲顶
+            // 类型判定用分数（校准版）：
+      // 1) 极低维度（尤其边界/身体/精神）会强惩罚，避免“均衡性崩塌被总分掩盖”
+      // 2) 允许“高回报硬扛”落在 ③，并用文案解释，而不是一刀切打成 ④
+      totalScoreAdj() {
+        const s = this.dimScoresNorm || {};
+        const vals = Object.values(s);
+        if (!vals.length) return 0;
+
+        const sorted = [...vals].sort((a, b) => a - b);
+        const min1 = sorted[0] ?? 0;
+        const min2 = sorted[1] ?? 0;
+        const max = sorted[sorted.length - 1] ?? 0;
+
+        let bonus = 0;
+        // 均衡加成（稍微收敛，避免把“舒服”直接抬成高回报）
+        if (min1 >= 22) bonus += 6;
+        if (min1 >= 26) bonus += 3;
+        if ((max - min1) <= 10) bonus += 4;
+        bonus = Math.min(12, bonus);
+
+        let penalty = 0;
+
+        // 塌陷惩罚（更锋利）：最低维度越低惩罚越强
+        // min1：<12 开始罚，<=6 额外重罚（确保用例5能下去）
+        if (min1 < 12) penalty += (12 - min1) * 2.2;
+        if (min1 <= 6) penalty += 10;
+
+        // min2：<14 也罚，避免“第二短板”被忽略
+        if (min2 < 14) penalty += (14 - min2) * 1.1;
+
+        // 身体底盘惩罚：身体维度塌陷会强烈影响可持续性（避免“身体报警”还被判高回报）
+        const body = s.body ?? 0;
+        if (body < 12) penalty += (12 - body) * 2.4;
+        if (body <= 6) penalty += 8;
+
+        // “高回报硬扛”缓冲：pay 很高时，允许别被一刀切打入 ④
+        // 注意：这不是抬分，是减少部分惩罚（让它更像③+解释）
+        const pay = s.pay ?? 0;
+        if (pay >= 24) penalty *= 0.82;
+
+        // 最终
+        const raw = this.totalScoreNorm + bonus - penalty;
+        return Math.max(0, Math.min(150, Math.round(raw)));
+      },
+
+      // 计算每个维度的累计分
+      dimScores() {
+        const base = { pay: 0, time: 0, boundary: 0, body: 0, mind: 0 };
+        for (const item of this.scoreHistory) {
+          if (!item || typeof item.score !== 'number') continue;
+          const dim = item.dim || 'time';
+          if (base[dim] === undefined) base[dim] = 0;
+          base[dim] += item.score;
+        }
+        return base;
+      },
+
+      // V3.4 报告对象：结果页唯一数据源
+      resultData() {
+        const score = this.totalScoreAdj;
+
+        // 维度排名：最低=拖累，最高=相对优势
+        const dims = this.dimScoresNorm;
+        const entries = Object.entries(dims);
+        const sortedAsc = [...entries].sort((a, b) => a[1] - b[1]);
+        const sortedDesc = [...entries].sort((a, b) => b[1] - a[1]);
+        const topDragKey = sortedAsc[0] ? sortedAsc[0][0] : 'time';
+        const topStrengthKey = sortedDesc[0] ? sortedDesc[0][0] : 'pay';
+
+        // 小工具：按分段给“含泪时薪”一个合理区间（产品表达，不追求真实财务）
+        const hourlyMap = (s) => {
+          if (s >= 130) return '135.0';
+          if (s >= 100) return '92.4';
+          if (s >= 60)  return '68.2';
+          return '42.6';
+        };
+
+        // 小工具：结论卡做轻微变化（避免千人一面）
+        const sharePoolLow = [
+          '你正在用人生，补贴这份工作。',
+          '这不是上班，这是缓慢但持续的消耗。',
+          '你不是在打工，你是在“付费上班”。'
+        ];
+        const sharePoolMid = [
+          '还能撑住，但不该久留的工作。',
+          '短期不亏，长期别上头。',
+          '它不至于毁你，但会慢慢磨你。'
+        ];
+        const sharePoolHigh = [
+          '你这份工作，居然在给你回血。',
+          '这不是职场，这是稀有样本。',
+          '建议低调：别让更多人知道。'
+        ];
+        const pick = (arr) => arr[score % arr.length];
+
+        // 四档：>=130 / 100-129 / 60-99 / <60
+        if (score >= 130) {
+          return {
+            typeTitle: '低损耗 · 高回血 · 稀有样本型',
+            typeExplain: '整体均衡分处于高位：时间与边界相对完整，身体与精神负担可控。当前状态可持续，但别把舒适当作停滞的理由。（SCORE 为整体均衡分，不等价于收入高低。）',
+            diagnosis: {
+              hourly: hourlyMap(score),
+              loss: '机会成本（可控）',
+              recovery: '较强',
+              risk: '主要风险不在消耗，而在舒适区停留过久导致增长停滞。'
+            },
+            paths: [
+              '若你有明确上升目标 → 现在是“低成本试错窗口”，可主动拿资源',
+              '若你更看重稳定 → 维持节奏即可，但建议保留一条外部备选路径',
+              '若你已在积累副业/技能 → 可以在不影响主业的前提下做放大实验'
+            ],
+            shareText: pick(sharePoolHigh),
+            topDrag: this.dimMeta[topDragKey],
+            topStrength: this.dimMeta[topStrengthKey]
+          };
+        }
+
+        if (score >= 100) {
+          // ② 档内分支：生活友好型（舒服 ≠ 高回报，避免语义错位）
+          const d = this.dimScoresNorm;
+          const payLow = (d.pay ?? 0) <= 14;
+          const lifestyleHigh =
+            (d.time ?? 0) >= 22 &&
+            (d.boundary ?? 0) >= 22 &&
+            (d.body ?? 0) >= 20 &&
+            (d.mind ?? 0) >= 20;
+
+          if (payLow && lifestyleHigh) {
+            return {
+              typeTitle: '低损耗 · 中回报 · 生活友好型',
+              typeExplain: '你的优势在低损耗结构：时间与边界更完整，身体与精神更稳。回报不算高，但可持续性强，风险主要在收入上限与缓冲。（SCORE 为整体均衡分，不等价于收入高低。）',
+              diagnosis: {
+                hourly: hourlyMap(score),
+                loss: '回报兑现（偏弱）',
+                recovery: '较强',
+                risk: '主要风险来自收入上限与抗风险缓冲不足，而非日常消耗。'
+              },
+              paths: [
+                '若你想提高安全感 → 建议补一条收入增长路径（技能/副业/跳槽）',
+                '若你更看重生活质量 → 当前均衡性很稳，重点是守住边界与节奏',
+                '若你担心未来风险 → 建议建立 6–12 个月现金缓冲'
+              ],
+              shareText: '你不是不努力，你是在用低损耗，换一份更可持续的生活。',
+              topDrag: this.dimMeta[topDragKey],
+              topStrength: this.dimMeta[topStrengthKey]
+            };
+          }
+          return {
+            typeTitle: '中损耗 · 高回报 · 可持续型',
+            typeExplain: '整体均衡分在偏上区间：投入有压力，但回报与资源基本匹配。可持续性尚可，关键是盯住回报兑现并守住边界。（SCORE 为整体均衡分，不等价于收入高低。）',
+            diagnosis: {
+              hourly: hourlyMap(score),
+              loss: '时间占用（中等）',
+              recovery: '尚可',
+              risk: '若职责继续上升但回报停滞，性价比可能在 6–12 个月内下滑。'
+            },
+            paths: [
+              '若接下来 6 个月存在明确晋升/涨薪节点 → 可阶段性投入，盯兑现',
+              '若工作内容开始持续外溢到私人时间 → 需要设边界，避免“隐形加班常态化”',
+              '若你想增强安全感 → 建议并行准备外部机会，不等到被动'
+            ],
+            shareText: '这份工作目前不亏，但你要盯住回报兑现。',
+            topDrag: this.dimMeta[topDragKey],
+            topStrength: this.dimMeta[topStrengthKey]
+          };
+        }
+
+        if (score >= 60) {
+          return {
+            typeTitle: '中损耗 · 中回血 · 勉强平衡型',
+            typeExplain: '整体均衡分在中位：能维持，但短板会累积成长期压力。建议设复盘点：回报增长或损耗下降至少满足其一。（SCORE 为整体均衡分，不等价于收入高低。）',
+            diagnosis: {
+              hourly: hourlyMap(score),
+              loss: '时间占用',
+              recovery: '一般',
+              risk: '若缺乏明确成长路径，后期倦怠感与无力感可能上升。'
+            },
+            paths: [
+              '若当前岗位存在明确能力放大空间 → 可阶段性投入，但设定复盘点',
+              '若工作内容长期重复且回报稳定 → 可作为过渡方案，不要长期绑定',
+              '若外部机会成本明显上升 → 建议提前准备备选路径'
+            ],
+            shareText: pick(sharePoolMid),
+            topDrag: this.dimMeta[topDragKey],
+            topStrength: this.dimMeta[topStrengthKey]
+          };
+        }
+
+        // <60：高损耗人群
+        // ④ 档内分支：高回报硬扛型（避免“高薪被压榨”被误读成纯低回血）
+        const d = this.dimScoresNorm;
+        const hardCarry =
+          (d.pay ?? 0) >= 24 &&
+          ((d.boundary ?? 0) <= 10 || (d.time ?? 0) <= 10) &&
+          ((d.body ?? 0) <= 12 || (d.mind ?? 0) <= 12);
+
+        if (hardCarry) {
+          const hourlyHardCarry = (d.pay ?? 0) >= 24 ? '92.4' : hourlyMap(score);
+          return {
+            typeTitle: '高损耗 · 高回报 · 硬扛兑现型',
+            typeExplain: '回报不低，但主要靠高强度投入对冲损耗；时间、边界与身体底盘在被持续透支。整体均衡分低代表不可持续，不等价于收入低；请给自己设兑现期限与止损点。（SCORE 为整体均衡分，不等价于收入高低。）',
+            diagnosis: {
+              hourly: hourlyHardCarry,
+              loss: '边界/时间/身体底盘（被高投入对冲）',
+              recovery: '阶段性（回报在对冲）',
+              risk: '若持续 ≥ 6–12 个月，身体与关系成本大概率加速坍塌；建议盯兑现并设置止损点。'
+            },
+            paths: [
+              '若回报可兑现（晋升/奖金/跳槽溢价）→ 给自己设一个明确的“兑现期限”',
+              '若回报不确定 → 不建议继续追加透支，尽快寻找均衡性更稳的选择',
+              '优先做边界修复：下班免打扰/午休不回/请假可用'
+            ],
+            shareText: '你不是不努力，你是在用健康和边界，硬扛一份回报。',
+            topDrag: this.dimMeta[topDragKey],
+            topStrength: this.dimMeta[topStrengthKey]
+          };
+        }
+        return {
+          typeTitle: '高损耗 · 低回血 · 情绪透支型',
+          typeExplain: '整体均衡分落在底部区间：消耗显著高于长期回报，恢复不足以对冲。若状态持续，职业满意度与身心底盘大概率进一步下滑。（SCORE 为整体均衡分，不等价于收入高低。）',
+          diagnosis: {
+            hourly: hourlyMap(score),
+            loss: '精神代价',
+            recovery: '偏低',
+            risk: '若当前状态持续 ≥ 12 个月，职业满意度与身心底盘出现明显断崖的概率较高。'
+          },
+          paths: [
+            '若你在 6 个月内存在明确的涨薪或转岗窗口 → 可短期承受，观察变化是否兑现',
+            '若当前岗位责任持续上升但回报无明确承诺 → 不建议继续追加长期投入',
+            '若你已具备副业或技能积累 → 当前岗位不适合长期全职绑定'
+          ],
+          shareText: pick(sharePoolLow),
+          topDrag: this.dimMeta[topDragKey],
+          topStrength: this.dimMeta[topStrengthKey]
+        };
+      }
+    },
+
+      methods: {
+        startQuiz() {
+          this.step = 'quiz';
+        },
+
+        handleAnswer(score) {
+          const dim = this.questions[this.currentQuestion].dim;
+          this.scoreHistory.push({ score, dim });
+          this.totalScore += score;
+
+          if (this.currentQuestion < this.questions.length - 1) {
+            this.currentQuestion++;
+          } else {
+            this.showPayModal = true;
+          }
+        },
+
+        prevQuestion() {
+          if (this.currentQuestion > 0) {
+            const last = this.scoreHistory.pop();
+            this.totalScore -= last ? last.score : 0;
+            this.currentQuestion--;
+          }
+        },
+
+        continueFree() {
+          this.showPayModal = false;
+          this.freeRider = true;
+          this.step = 'result';
+        },
+
+        confirmPayment() {
+          this.showPayModal = false;
+          this.freeRider = false;
+          this.step = 'result';
+        },
+
+        getCanvasOptions() {
+          return {
+            backgroundColor: '#ffffff',
+            scale: Math.min(2, window.devicePixelRatio || 2),
+            useCORS: true,
+            // 这两个是长截图更稳的关键
+            scrollX: 0,
+            scrollY: -window.scrollY
+          };
+        },
+
+        capturePoster() {
+          const target = document.getElementById('posterCard');
+          if (!target) {
+            alert('未找到海报区域（posterCard）');
+            return;
+          }
+
+          // 等一帧，确保 Vue 渲染与字体布局稳定
+          requestAnimationFrame(() => {
+            html2canvas(target, this.getCanvasOptions())
+              .then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'job-status-snapshot.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+              })
+              .catch(err => {
+                console.error(err);
+                alert('生成海报失败，请打开控制台查看错误');
+              });
+          });
+        },
+
+        // 当前长截图方案更稳的方法，现行使用中
+        captureLongReport() {
+          const report = document.getElementById('fullReport');
+          if (!report) {
+            alert('未找到报告区域（fullReport）');
+            return;
+          }
+
+          const app = document.getElementById('app');
+          const actionBar = document.getElementById('actionBar');
+
+          // 记录旧样式
+          const oldOverflow = app ? app.style.overflow : '';
+          const oldActionDisplay = actionBar ? actionBar.style.display : '';
+
+          // 截图前：解除裁切 + 隐藏按钮区
+          if (app) app.style.overflow = 'visible';
+          if (actionBar) actionBar.style.display = 'none';
+
+          requestAnimationFrame(() => {
+            html2canvas(report, this.getCanvasOptions())
+              .then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'job-cost-effectiveness-long.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+              })
+              .catch(err => {
+                console.error(err);
+                alert('生成长截图失败，请打开控制台查看错误');
+              })
+              .finally(() => {
+                // 恢复
+                if (app) app.style.overflow = oldOverflow;
+                if (actionBar) actionBar.style.display = oldActionDisplay;
+              });
+          });
+        },
+
+      reset() {
+        this.step = 'home';
+        this.currentQuestion = 0;
+        this.totalScore = 0;
+        this.scoreHistory = [];
+        this.showPayModal = false;
+        this.freeRider = false;
+        }
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
