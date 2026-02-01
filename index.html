@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>工作性价比评估 V3.4</title>
+  <title>工作性价比鉴定</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <style>
@@ -115,7 +115,7 @@
         </div>
       </div>
 
-      <!-- RESULT (V3.4 报告版) -->
+      <!-- RESULT (V4.0 报告版) -->
       <div v-if="step === 'result'" class="flex-1 flex flex-col relative" id="fullReport">
       <!-- 白嫖盖章（仅对白嫖用户展示） -->
       <div v-if="freeRider" class="pointer-events-none absolute top-8 right-8 z-20">
@@ -277,7 +277,7 @@
           </div>
         </div>
 
-        <!-- 模块二点五｜五维损耗画像（V3.4 新增） -->
+        <!-- 模块二点五｜五维损耗画像（V4.0 新增） -->
         <div class="bg-white border border-slate-100 p-5 rounded-2xl mt-4">
           <div class="flex items-center justify-between mb-3">
             <h3 class="text-sm font-black text-slate-900">五维损耗画像</h3>
@@ -750,7 +750,7 @@
         return base;
       },
 
-      // V3.4 报告对象：结果页唯一数据源
+      // V4.0 报告对象：结果页唯一数据源
       resultData() {
         const score = this.totalScoreAdj;
 
